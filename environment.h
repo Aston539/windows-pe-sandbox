@@ -16,25 +16,13 @@ typedef enum _SBX_EMULATED_PE_ENVIRONMENT_TYPE
 
 } SBX_EMULATED_PE_ENVIRONMENT_TYPE, * PSBX_EMULATED_PE_ENVIRONMENT_TYPE;
 
-typedef struct _SBX_MONITORED_DETOUR
-{
-	LPCSTR TargetLib;
-	LPCSTR TargetRoutine;
-	LPCWSTR TargetWRoutine;
-	ULONG TargetOrdinal;
-
-	PVOID DetourAddress;
-
-} SBX_MONITORED_DETOUR, *PSBX_MONITORED_DETOUR;
-
 typedef struct _SBX_MONITORED_ROUTINE
 {
-	std::string LibName;
-	std::string RoutineName;
-	ULONG RoutineOrdinal;
+	std::string LibName;	    // 
+	std::string RoutineName;    // routine identifiers
+	ULONG       RoutineOrdinal; // 
+
 	PVOID RoutineAddress;
-	PVOID DetourAddress;
-	PVOID PointerAddress;
 
 } SBX_MONITORED_ROUTINE, * PSBX_MONITORED_ROUTINE;
 
@@ -49,7 +37,11 @@ typedef struct _SBX_EMULATED_IMAGE
 
 typedef enum _SBX_EMULATED_PE_FLAGS
 {
-	SBX_EMU_PE_SINGLESTEP = ( 1 << 0 )
+	SBX_EMU_PE_SINGLESTEP = ( 1 << 0 ),
+	SBX_EMU_PE_BREAK_ON_MONITORED_ROUTINE = ( 1 << 1 ),
+
+	SBX_EMU_LOG_MONITORED_ROUTINES = ( 1 << 2 ),
+	SBX_EMU_LOG_INSTRUCTIONS = ( 1 << 3 ),
 
 } SBX_EMULATED_PE_FLAGS, *PSBX_EMULATED_PE_FLAGS;
 
@@ -60,12 +52,7 @@ typedef struct _SBX_EMULATED_PE
 	ULONG Flags;
 	PBYTE EmulatedBase;
 
-	std::vector<SBX_MONITORED_ROUTINE> MonitoredRoutines;
-
 } SBX_EMULATED_PE, * PSBX_EMULATED_PE;
-
-#define SBX_DECLARE_MONITORED_DETOUR( Lib, RoutineName, Detour ) { Lib, #RoutineName, L#RoutineName, NULL, Detour },
-#define SBX_DECLARE_MONITORED_DETOUR_ORDINAL( Lib, Ordinal, Detour ) { Lib, NULL, NULL, Ordinal, Detour },
 
 typedef struct _SBX_ENVIRONMENT
 {
@@ -75,9 +62,7 @@ typedef struct _SBX_ENVIRONMENT
 
 } SBX_ENVIRONMENT, *PSBX_ENVIRONMENT;
 
-EXTERN std::vector<SBX_MONITORED_DETOUR> MonitoredDetours;
 EXTERN SBX_ENVIRONMENT SbxEnvironment;
-
 
 PSBX_EMULATED_PE
 SbxAllocateImage(
@@ -90,10 +75,10 @@ SbxFixEmulatedPEImports(
 	_Inout_ PSBX_EMULATED_PE EmulatedPE
 );
 
-BOOL
-SbxSetupMonitoredRoutines(
-	_Inout_ PSBX_EMULATED_PE EmulatedPE
-);
+//BOOL
+//SbxSetupMonitoredRoutines(
+//	_Inout_ PSBX_EMULATED_PE EmulatedPE
+//);
 
 BOOL
 SbxIsWithinEmulatedImage(
@@ -106,11 +91,13 @@ SbxGetEmulatedPEByException(
 );
 
 BOOL
-SbxIsValidEnvironment(
-	_In_ ULONG ID
-);
-
-BOOL
 SbxSetPEProtection(
 	_In_ PSBX_EMULATED_PE EmulatedPE
+);
+
+ULONG
+SbxHandleImageStepOut(
+	_In_ PSBX_EMULATED_PE EmulatedPE,
+	_In_ PVOID ExceptionAddress,
+	_In_ PVOID LastExceptionAddress
 );

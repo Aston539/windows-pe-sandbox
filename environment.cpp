@@ -3,8 +3,7 @@
 #include <iostream>
 
 #include "emulator.h"
-
-#include "monitored_detours.h"
+#include "monitored.h"
 
 #pragma warning(disable : 4996)
 
@@ -39,13 +38,6 @@ SbxAllocateImage(
 	EmulatedPE->PE = PEImage;
 
 	if ( !SbxFixEmulatedPEImports( EmulatedPE ) )
-	{
-		TargetEnvironment->EmulatedImages.pop_back( );
-
-		return NULL;
-	}
-
-	if ( !SbxSetupMonitoredRoutines( EmulatedPE ) )
 	{
 		TargetEnvironment->EmulatedImages.pop_back( );
 
@@ -115,6 +107,11 @@ SbxFixEmulatedPEImports(
 				{
 					ShouldEmulate = TRUE;
 				}
+			}
+
+			if ( !ShouldEmulate )
+			{
+				SbxRegisterPEExportsAsMonitored( LibName, ( UINT64 )Lib );
 			}
 
 			if ( ShouldEmulate )
@@ -193,51 +190,20 @@ SbxFixEmulatedPEImports(
 				return FALSE;
 			}
 
-			ULONGLONG ImportRoutineAddress = { };
-
-			for ( auto MonitoredDetour : MonitoredDetours )
-			{
-				if ( ( UINT64 )RoutineName < 0xFFF )
-				{
-					if ( MonitoredDetour.TargetOrdinal && MonitoredDetour.TargetOrdinal == ( UINT64 )RoutineName )
-					{
-						ImportRoutineAddress = ( UINT64 )MonitoredDetour.DetourAddress;
-					}
-				}
-				else
-				{
-					if ( _stricmp( MonitoredDetour.TargetLib, LibName ) == 0 &&
-						 _stricmp( MonitoredDetour.TargetRoutine, RoutineName ) == 0 )
-					{
-						ImportRoutineAddress = ( UINT64 )MonitoredDetour.DetourAddress;
-					}
-				}
-			}
+			ULONGLONG ImportRoutineAddress = ( ULONGLONG )GetProcAddress( Lib, RoutineName );
 
 			if ( !ImportRoutineAddress )
 			{
-				ImportRoutineAddress = ( ULONGLONG )GetProcAddress( Lib, RoutineName );
-
-				if ( !ImportRoutineAddress )
+				if ( ( UINT64 )RoutineName <= 0x1000 )
 				{
-					ImportRoutineAddress = ( ULONGLONG )GetProcAddress( GetModuleHandleA( "ntdll.dll" ), RoutineName );
-
-					if ( !ImportRoutineAddress )
-					{
-						ULONGLONG SecondAttempt = ( ULONGLONG )GetProcAddress( GetModuleHandleA( "kernelbase.dll" ), RoutineName );
-
-						if ( SecondAttempt )
-						{
-							ImportRoutineAddress = SecondAttempt;
-						}
-						else
-						{
-							printf( "Failed to resolve routine: %s\n", RoutineName );
-
-							//__debugbreak( );
-						}
-					}
+					printf( "Failed to resolve routine: { %s, %i }\n", LibName, ( UINT16 )RoutineName );
 				}
+				else
+				{
+					printf( "Failed to resolve routine: { %s, %s }\n", LibName, RoutineName );
+				}
+
+				//__debugbreak( );
 			}
 
 			IAT->u1.AddressOfData = ImportRoutineAddress;
@@ -249,101 +215,101 @@ SbxFixEmulatedPEImports(
 	return TRUE;
 }
 
-BOOL 
-SbxSetupMonitoredRoutines(
-	_Inout_ PSBX_EMULATED_PE EmulatedPE 
-)
-{
-	if ( !EmulatedPE )
-	{
-		//
-		// should never happen
-		//
-		__debugbreak( );
-
-		return FALSE;
-	}
-
-	PSBX_ENVIRONMENT TargetEnvironment = &SbxEnvironment;
-
-	PIMAGE_IMPORT_DESCRIPTOR HeadDescriptor = SbxGetPEImportDescriptor( &EmulatedPE->PE );
-
-	if ( !HeadDescriptor )
-	{
-		//
-		// should never happen
-		//
-		__debugbreak( );
-
-		return FALSE;
-	}
-
-	for (
-		PIMAGE_IMPORT_DESCRIPTOR CurrDescriptor = HeadDescriptor;
-		CurrDescriptor && CurrDescriptor->Name;
-		CurrDescriptor++
-		)
-	{
-		LPCSTR LibName = ( LPCSTR )( EmulatedPE->PE.LoadedBase + CurrDescriptor->Name );
-
-		HMODULE Lib = GetModuleHandleA( LibName );
-
-		if ( !Lib )
-		{
-			//
-			// should never happen
-			//
-			// __debugbreak( );
-
-			// return FALSE;
-		}
-
-		PIMAGE_THUNK_DATA IAT = ( PIMAGE_THUNK_DATA )( EmulatedPE->PE.LoadedBase + CurrDescriptor->FirstThunk );
-		PIMAGE_THUNK_DATA ILT = ( PIMAGE_THUNK_DATA )( EmulatedPE->PE.LoadedBase + CurrDescriptor->OriginalFirstThunk );
-
-		for (
-			;
-			IAT && ILT && ILT->u1.AddressOfData;
-			ILT++, IAT++
-			)
-		{
-			SBX_MONITORED_ROUTINE MonitoredRoutine = { };
-
-			MonitoredRoutine.LibName = LibName;
-
-			if ( IMAGE_SNAP_BY_ORDINAL( ILT->u1.Ordinal ) )
-			{
-				MonitoredRoutine.RoutineOrdinal = ( ULONG )( ILT->u1.Ordinal & 0xFFF );
-			}
-			else
-			{
-				PIMAGE_IMPORT_BY_NAME ImportName = ( PIMAGE_IMPORT_BY_NAME )( EmulatedPE->PE.LoadedBase + ILT->u1.AddressOfData );
-
-				MonitoredRoutine.RoutineName = ImportName->Name;
-			}
-
-			MonitoredRoutine.RoutineAddress = ( PVOID )IAT->u1.AddressOfData;
-			MonitoredRoutine.PointerAddress = IAT;
-
-			EmulatedPE->MonitoredRoutines.push_back( { MonitoredRoutine } );
-
-			//EmulatedPE->MonitoredRoutines = ( PAKI_MONITORED_ROUTINE* )realloc(
-			//	EmulatedPE->MonitoredRoutines,
-			//	( EmulatedPE->MonitoredRoutinesCount * sizeof( PVOID ) ) + sizeof( PVOID )
-			//);
-			//
-			//if ( !EmulatedPE->MonitoredRoutines )
-			//{
-			//	__debugbreak( );
-			//}
-			//
-			//EmulatedPE->MonitoredRoutines[ EmulatedPE->MonitoredRoutinesCount ] = MonitoredRoutine;
-			//EmulatedPE->MonitoredRoutinesCount += 1;
-		}
-	}
-
-	return !EmulatedPE->MonitoredRoutines.empty( );
-}
+//BOOL 
+//SbxSetupMonitoredRoutines(
+//	_Inout_ PSBX_EMULATED_PE EmulatedPE 
+//)
+//{
+//	if ( !EmulatedPE )
+//	{
+//		//
+//		// should never happen
+//		//
+//		__debugbreak( );
+//
+//		return FALSE;
+//	}
+//
+//	PSBX_ENVIRONMENT TargetEnvironment = &SbxEnvironment;
+//
+//	PIMAGE_IMPORT_DESCRIPTOR HeadDescriptor = SbxGetPEImportDescriptor( &EmulatedPE->PE );
+//
+//	if ( !HeadDescriptor )
+//	{
+//		//
+//		// should never happen
+//		//
+//		__debugbreak( );
+//
+//		return FALSE;
+//	}
+//
+//	for (
+//		PIMAGE_IMPORT_DESCRIPTOR CurrDescriptor = HeadDescriptor;
+//		CurrDescriptor && CurrDescriptor->Name;
+//		CurrDescriptor++
+//		)
+//	{
+//		LPCSTR LibName = ( LPCSTR )( EmulatedPE->PE.LoadedBase + CurrDescriptor->Name );
+//
+//		HMODULE Lib = GetModuleHandleA( LibName );
+//
+//		if ( !Lib )
+//		{
+//			//
+//			// should never happen
+//			//
+//			// __debugbreak( );
+//
+//			// return FALSE;
+//		}
+//
+//		PIMAGE_THUNK_DATA IAT = ( PIMAGE_THUNK_DATA )( EmulatedPE->PE.LoadedBase + CurrDescriptor->FirstThunk );
+//		PIMAGE_THUNK_DATA ILT = ( PIMAGE_THUNK_DATA )( EmulatedPE->PE.LoadedBase + CurrDescriptor->OriginalFirstThunk );
+//
+//		for (
+//			;
+//			IAT && ILT && ILT->u1.AddressOfData;
+//			ILT++, IAT++
+//			)
+//		{
+//			SBX_MONITORED_ROUTINE MonitoredRoutine = { };
+//
+//			MonitoredRoutine.LibName = LibName;
+//
+//			if ( IMAGE_SNAP_BY_ORDINAL( ILT->u1.Ordinal ) )
+//			{
+//				MonitoredRoutine.RoutineOrdinal = ( ULONG )( ILT->u1.Ordinal & 0xFFF );
+//			}
+//			else
+//			{
+//				PIMAGE_IMPORT_BY_NAME ImportName = ( PIMAGE_IMPORT_BY_NAME )( EmulatedPE->PE.LoadedBase + ILT->u1.AddressOfData );
+//
+//				MonitoredRoutine.RoutineName = ImportName->Name;
+//			}
+//
+//			MonitoredRoutine.RoutineAddress = ( PVOID )IAT->u1.AddressOfData;
+//			MonitoredRoutine.PointerAddress = IAT;
+//
+//			EmulatedPE->MonitoredRoutines.push_back( { MonitoredRoutine } );
+//
+//			//EmulatedPE->MonitoredRoutines = ( PAKI_MONITORED_ROUTINE* )realloc(
+//			//	EmulatedPE->MonitoredRoutines,
+//			//	( EmulatedPE->MonitoredRoutinesCount * sizeof( PVOID ) ) + sizeof( PVOID )
+//			//);
+//			//
+//			//if ( !EmulatedPE->MonitoredRoutines )
+//			//{
+//			//	__debugbreak( );
+//			//}
+//			//
+//			//EmulatedPE->MonitoredRoutines[ EmulatedPE->MonitoredRoutinesCount ] = MonitoredRoutine;
+//			//EmulatedPE->MonitoredRoutinesCount += 1;
+//		}
+//	}
+//
+//	return !EmulatedPE->MonitoredRoutines.empty( );
+//}
 
 BOOL 
 SbxIsWithinEmulatedImage( 
@@ -420,4 +386,57 @@ SbxSetPEProtection(
 	//}
 
 	return TRUE;
+}
+
+ULONG 
+SbxHandleImageStepOut( 
+	_In_ PSBX_EMULATED_PE EmulatedPE,
+	_In_ PVOID ExceptionAddress, 
+	_In_ PVOID LastExceptionAddress 
+)
+{
+	if ( !MonitoredRoutines.contains( ( UINT64 )ExceptionAddress ) )
+	{
+		printf( "\n[ !!! ] IMAGE STEPPING OUT TO UNKOWN ADDRESS - 0x%p [ !!! ]\n\n", ExceptionAddress );
+
+		return EXCEPTION_CONTINUE_EXECUTION;
+	}
+
+	//printf( "monitored routine called!\n" );
+
+	SBX_MONITORED_ROUTINE MRoutine = MonitoredRoutines.at( ( UINT64 )ExceptionAddress );
+
+	printf( "[ MRoutine ] Monitored Routine attempted to be called:\n\tRoutineLib -> %s\n\tRoutineName -> %s\n\tRoutineAddress -> 0x%p\n",
+
+		MRoutine.LibName.c_str( ),
+		MRoutine.RoutineName.c_str( ),
+		MRoutine.RoutineAddress
+
+		);
+
+	if ( EmulatedPE->Flags & SBX_EMU_PE_BREAK_ON_MONITORED_ROUTINE )
+	{
+		printf( "Press any key to continue with the call...\n" );
+		std::cin.get( );
+
+		CONSOLE_SCREEN_BUFFER_INFO csbi;
+		COORD cursorPosition;
+
+		// Get the current cursor position
+		GetConsoleScreenBufferInfo( GetStdHandle( STD_OUTPUT_HANDLE ), &csbi );
+		cursorPosition = csbi.dwCursorPosition;
+
+		// Move cursor to the beginning of the line
+		cursorPosition.X = 0;
+		cursorPosition.Y -= 1;
+		SetConsoleCursorPosition( GetStdHandle( STD_OUTPUT_HANDLE ), cursorPosition );
+
+		// Print spaces to clear the entire line
+		DWORD numCharsWritten;
+		DWORD consoleSize = csbi.dwSize.X;
+		FillConsoleOutputCharacter( GetStdHandle( STD_OUTPUT_HANDLE ), ' ', consoleSize, cursorPosition, &numCharsWritten );
+		SetConsoleCursorPosition( GetStdHandle( STD_OUTPUT_HANDLE ), cursorPosition );
+	}
+
+	return EXCEPTION_CONTINUE_EXECUTION;
 }

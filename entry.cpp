@@ -2,7 +2,7 @@
 
 #include "emulator.h"
 
-#define SBX_TARGET_IMAGE_PATH "C:\\Windows\\System32\\Notepad.exe" //"C:\\Users\\trapp\\Documents\\Programming\\Projects\\ConsoleApplication1\\x64\\Debug\\ConsoleApplication1.exe"
+#define SBX_TARGET_IMAGE_PATH "C:\\Windows\\System32\\Notepad.exe"
 
 int
 main(
@@ -32,7 +32,13 @@ main(
         return 0x2;
     }
     
-    if ( !SbxEmulatePE( &PEImage, SBX_EMU_USERMODE, NULL/*SBX_EMU_PE_SINGLESTEP*/ ) )
+    if ( !SbxEmulatePE( &PEImage, SBX_EMU_USERMODE,
+
+        SBX_EMU_PE_BREAK_ON_MONITORED_ROUTINE |
+        SBX_EMU_LOG_MONITORED_ROUTINES |
+        SBX_EMU_LOG_INSTRUCTIONS
+        
+        ) )
     {
         return 0x3;
     }

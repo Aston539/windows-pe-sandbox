@@ -127,6 +127,7 @@
     <ClCompile Include="environment.cpp" />
     <ClCompile Include="hde\hde32.c" />
     <ClCompile Include="hde\hde64.c" />
+    <ClCompile Include="monitored.cpp" />
     <ClCompile Include="pe.cpp" />
     <ClCompile Include="vcpu.cpp" />
   </ItemGroup>
@@ -138,7 +139,7 @@
     <ClInclude Include="hde\pstdint.h" />
     <ClInclude Include="hde\table32.h" />
     <ClInclude Include="hde\table64.h" />
-    <ClInclude Include="monitored_detours.h" />
+    <ClInclude Include="monitored.h" />
     <ClInclude Include="pe.h" />
     <ClInclude Include="vcpu.h" />
     <ClInclude Include="winternls.h" />

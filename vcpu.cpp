@@ -16,19 +16,42 @@ SbxEmulateInstruction(
     {
         PSBX_EMULATED_PE SbxPE = SbxGetEmulatedPEByException( ( UINT64 )ExceptionAddress );
 
-        hde64s InstructionInfo = { };
-        hde64_disasm( ExceptionAddress, &InstructionInfo );
-
-        BYTE Buffer[ 0x20 ] = { };
-
-        memcpy( Buffer, ExceptionAddress, InstructionInfo.len );
-
-        for ( ULONG i = 0; i < InstructionInfo.len; i++ )
+        if ( SbxPE->Flags & SBX_EMU_LOG_INSTRUCTIONS )
         {
-            printf( "0x%X, ", Buffer[ i ] );
-        }
+#define MAX_INSTR_LEN 20
 
-        printf( "\n" );
+            hde64s InstructionInfo = { };
+            hde64_disasm( ExceptionAddress, &InstructionInfo );
+
+            BYTE Buffer[ MAX_INSTR_LEN ] = { };
+
+            memcpy( Buffer, ExceptionAddress, InstructionInfo.len + 1 );
+
+            printf( "[ %p ]", ExceptionAddress );
+
+            if ( Buffer[ NULL ] < 0x10 )
+            {
+                printf( "\t%X%X", NULL, Buffer[ NULL ] );
+            }
+            else
+            {
+                printf( "\t%X", Buffer[ NULL ] );
+            }
+
+            for ( ULONG I = 1; I < InstructionInfo.len; I++ )
+            {
+                if ( Buffer[ I ] < 0x10 )
+                {
+                    printf( ", %X%X", NULL, Buffer[ I ] );
+                }
+                else
+                {
+                    printf( ", %X", Buffer[ I ] );
+                }
+            }
+
+            printf( "\n" );
+        }
 
         if ( SbxPE->Flags & SBX_EMU_PE_SINGLESTEP )
         {

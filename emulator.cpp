@@ -8,6 +8,7 @@
 #include "hde/hde64.h"
 
 #include "vcpu.h"
+#include "monitored.h"
 
 #pragma warning( disable : 4996 )
 
@@ -20,7 +21,17 @@ SbxInitializeEmulator(
 {
 	VEHHandle = AddVectoredExceptionHandler( 1, ( PVECTORED_EXCEPTION_HANDLER )SbxExceptionHandler );
 
-	return VEHHandle != NULL;
+	if ( !VEHHandle )
+	{
+		return FALSE;
+	}
+
+	if ( !SbxSetupMonitoredRoutines( ) )
+	{
+		return FALSE;
+	}
+
+	return TRUE;
 }
 
 VOID 
@@ -243,35 +254,41 @@ SbxExceptionHandler(
 		if ( !SbxIsWithinEmulatedImage( ( UINT64 )ExceptionAddress ) )
 		{
 			//
-			// stepping out of the image
+			// stepping out of image
 			//
 
-			if ( SbxIsWithinEmulatedImage( LastExceptionAddress ) )
+			if ( !SbxIsWithinEmulatedImage( LastExceptionAddress ) )
 			{
-				PSBX_EMULATED_PE EmulatedPE = SbxGetEmulatedPEByException( LastExceptionAddress );
-
-				if ( !EmulatedPE )
-				{
-					//
-					// this is not our exception
-					//
-
-					__debugbreak( );
-				}
-
-				if ( !SbxSetPEProtection( EmulatedPE ) )
-				{
-					__debugbreak( );
-				}
+				//
+				// is something else single stepping ?
+				//
+				__debugbreak( );
 			}
-			else
+
+			PSBX_EMULATED_PE EmulatedPE = SbxGetEmulatedPEByException( LastExceptionAddress );
+
+			if ( !EmulatedPE )
+			{
+				__debugbreak( );
+			}
+
+			//
+			// re protect our emulated pe
+			// as so that when we step back
+			// in were notified
+			//
+			if ( !SbxSetPEProtection( EmulatedPE ) )
 			{
 				__debugbreak( );
 			}
 
 			lock.unlock( );
 
-			return EXCEPTION_CONTINUE_EXECUTION;
+			return SbxHandleImageStepOut(
+				EmulatedPE,
+				ExceptionAddress,
+				( PVOID )LastExceptionAddress
+			);
 		}
 
 		LastExceptionAddress = ( UINT64 )ExceptionAddress; // ExceptionInfo->ContextRecord->Rip;
