@@ -43,6 +43,8 @@ typedef enum _SBX_EMULATED_PE_FLAGS
 	SBX_EMU_LOG_MONITORED_ROUTINES = ( 1 << 2 ),
 	SBX_EMU_LOG_INSTRUCTIONS = ( 1 << 3 ),
 
+	SBX_EMU_ONLY_MONITOR_EXTERN_LIBS = ( 1 << 4 ),
+
 } SBX_EMULATED_PE_FLAGS, *PSBX_EMULATED_PE_FLAGS;
 
 typedef struct _SBX_EMULATED_PE
@@ -82,12 +84,12 @@ SbxFixEmulatedPEImports(
 
 BOOL
 SbxIsWithinEmulatedImage(
-	_In_ UINT64 ExceptionAddress
+	_In_ UINT_PTR ExceptionAddress
 );
 
 PSBX_EMULATED_PE
 SbxGetEmulatedPEByException(
-	_In_ UINT64 ExceptionAddress
+	_In_ UINT_PTR ExceptionAddress
 );
 
 BOOL

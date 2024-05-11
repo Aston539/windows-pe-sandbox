@@ -103,63 +103,74 @@ SbxFixEmulatedPEImports(
 			}
 			else
 			{
-				if ( GetLastError( ) != 0x007e )
-				{
-					ShouldEmulate = TRUE;
-				}
-			}
+				//if ( GetLastError( ) != 0x007E )
+				//{
+					//ShouldEmulate = TRUE;
 
-			if ( !ShouldEmulate )
-			{
-				SbxRegisterPEExportsAsMonitored( LibName, ( UINT64 )Lib );
-			}
-
-			if ( ShouldEmulate )
-			{
-				SBX_PE_IMAGE PEImage = { };
-				if ( !SbxLoadPE( LibName, &PEImage ) )
-				{
-					//
-					// if we still couldnt find it
-					// its likely this is not a normal module
-					// and we need to use the parent path to load it
-					//
-
-					//
-					// get file path to pe and try load using
-					// path as base ( we should also emulate this module )
-					//
 					CHAR PEDirectory[ MAX_PATH ] = { };
 
 					strncpy( PEDirectory, EmulatedPE->PE.FilePath, EmulatedPE->PE.OffsetToFileName );
 					strcat( PEDirectory, LibName );
 
-					PEImage = { };
-					if ( !SbxLoadPE( PEDirectory, &PEImage ) )
+					printf( "Couldnt load lib initially trying: \n\t%s\n", PEDirectory );
+
+					Lib = LoadLibraryA( PEDirectory );
+
+					if ( !Lib )
 					{
-						return FALSE;
+						//__debugbreak( );
 					}
-				}
-
-				if ( !SbxEmulatePE( &PEImage, SBX_EMU_USERMODE, NULL ) )
-				{
-					return FALSE;
-				}
-
-				Lib = ( HMODULE )PEImage.LoadedBase;
-
-				if ( !Lib )
-				{
-					//
-					// check if status indicates the module is not
-					// allowed be loaded for example if it needs
-					// to import from ntoskrnl.exe and we are
-					// not handling it in our monitored routines
-					//
-
-					// return FALSE;
-				}
+				//}
 			}
+
+			SbxRegisterPEExportsAsMonitored( LibName, ( UINT_PTR )Lib );
+
+			//if ( ShouldEmulate )
+			//{
+			//	SBX_PE_IMAGE PEImage = { };
+			//	if ( !SbxLoadPE( LibName, &PEImage ) )
+			//	{
+			//		//
+			//		// if we still couldnt find it
+			//		// its likely this is not a normal module
+			//		// and we need to use the parent path to load it
+			//		//
+
+			//		//
+			//		// get file path to pe and try load using
+			//		// path as base ( we should also emulate this module )
+			//		//
+			//		CHAR PEDirectory[ MAX_PATH ] = { };
+
+			//		strncpy( PEDirectory, EmulatedPE->PE.FilePath, EmulatedPE->PE.OffsetToFileName );
+			//		strcat( PEDirectory, LibName );
+
+			//		PEImage = { };
+			//		if ( !SbxLoadPE( PEDirectory, &PEImage ) )
+			//		{
+			//			return FALSE;
+			//		}
+			//	}
+
+			//	if ( !SbxEmulatePE( &PEImage, SBX_EMU_USERMODE, NULL ) )
+			//	{
+			//		return FALSE;
+			//	}
+
+			//	Lib = ( HMODULE )PEImage.LoadedBase;
+
+			//	if ( !Lib )
+			//	{
+			//		//
+			//		// check if status indicates the module is not
+			//		// allowed be loaded for example if it needs
+			//		// to import from ntoskrnl.exe and we are
+			//		// not handling it in our monitored routines
+			//		//
+
+			//		// return FALSE;
+			//	}
+			//}
 		}	
 
 		PIMAGE_THUNK_DATA IAT = ( PIMAGE_THUNK_DATA )( EmulatedPE->PE.LoadedBase + CurrDescriptor->FirstThunk );
@@ -194,7 +205,7 @@ SbxFixEmulatedPEImports(
 
 			if ( !ImportRoutineAddress )
 			{
-				if ( ( UINT64 )RoutineName <= 0x1000 )
+				if ( ( UINT_PTR )RoutineName <= 0x1000 )
 				{
 					printf( "Failed to resolve routine: { %s, %i }\n", LibName, ( UINT16 )RoutineName );
 				}
@@ -313,7 +324,7 @@ SbxFixEmulatedPEImports(
 
 BOOL 
 SbxIsWithinEmulatedImage( 
-	_In_ UINT64 ExceptionAddress 
+	_In_ UINT_PTR ExceptionAddress 
 )
 {
 	return SbxGetEmulatedPEByException( ExceptionAddress ) != NULL;
@@ -321,7 +332,7 @@ SbxIsWithinEmulatedImage(
 
 PSBX_EMULATED_PE 
 SbxGetEmulatedPEByException( 
-	_In_ UINT64 ExceptionAddress
+	_In_ UINT_PTR ExceptionAddress
 )
 {
 	PSBX_ENVIRONMENT CurrentEnvironment = &SbxEnvironment;
@@ -395,16 +406,16 @@ SbxHandleImageStepOut(
 	_In_ PVOID LastExceptionAddress 
 )
 {
-	if ( !MonitoredRoutines.contains( ( UINT64 )ExceptionAddress ) )
+	if ( !MonitoredRoutines.contains( ( UINT_PTR )ExceptionAddress ) )
 	{
-		printf( "\n[ !!! ] IMAGE STEPPING OUT TO UNKOWN ADDRESS - 0x%p [ !!! ]\n\n", ExceptionAddress );
+		//printf( "\n[ !!! ] IMAGE STEPPING OUT TO UNKOWN ADDRESS - 0x%p [ !!! ]\n\n", ExceptionAddress );
 
 		return EXCEPTION_CONTINUE_EXECUTION;
 	}
 
 	//printf( "monitored routine called!\n" );
 
-	SBX_MONITORED_ROUTINE MRoutine = MonitoredRoutines.at( ( UINT64 )ExceptionAddress );
+	SBX_MONITORED_ROUTINE MRoutine = MonitoredRoutines.at( ( UINT_PTR )ExceptionAddress );
 
 	printf( "[ MRoutine ] Monitored Routine attempted to be called:\n\tRoutineLib -> %s\n\tRoutineName -> %s\n\tRoutineAddress -> 0x%p\n",
 

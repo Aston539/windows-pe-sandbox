@@ -7,7 +7,7 @@
 #include "winternls.h"
 #include "emulator.h"
 
-EXTERN std::unordered_map<UINT64, SBX_MONITORED_ROUTINE> MonitoredRoutines;
+EXTERN std::unordered_map<UINT_PTR, SBX_MONITORED_ROUTINE> MonitoredRoutines;
 
 BOOL
 SbxSetupMonitoredRoutines(
@@ -17,7 +17,7 @@ SbxSetupMonitoredRoutines(
 BOOL
 SbxRegisterPEExportsAsMonitored(
 	_In_ std::string LibName,
-	_In_ UINT64 PEBase
+	_In_ UINT_PTR PEBase
 );
 
 BOOL

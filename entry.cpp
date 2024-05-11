@@ -2,7 +2,7 @@
 
 #include "emulator.h"
 
-#define SBX_TARGET_IMAGE_PATH "C:\\Windows\\System32\\Notepad.exe"
+#define SBX_TARGET_IMAGE_PATH "C:\\Program Files (x86)\\Steam\\steam.exe" // "C:\\Windows\\System32\\Notepad.exe"
 
 int
 main(
@@ -34,8 +34,6 @@ main(
     
     if ( !SbxEmulatePE( &PEImage, SBX_EMU_USERMODE,
 
-        SBX_EMU_PE_BREAK_ON_MONITORED_ROUTINE |
-        SBX_EMU_LOG_MONITORED_ROUTINES |
         SBX_EMU_LOG_INSTRUCTIONS
         
         ) )

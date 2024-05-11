@@ -1,12 +1,17 @@
 #include "monitored.h"
 
-std::unordered_map<UINT64, SBX_MONITORED_ROUTINE> MonitoredRoutines;
+std::unordered_map<UINT_PTR, SBX_MONITORED_ROUTINE> MonitoredRoutines;
 
 BOOL
 SbxSetupMonitoredRoutines(
 
 )
 {
+	if ( !MonitoredRoutines.empty( ) )
+	{
+		return TRUE;
+	}
+
 	PPEB Peb = NtCurrentPeb( );
 
 	if ( !Peb )
@@ -24,7 +29,7 @@ SbxSetupMonitoredRoutines(
 
 	for (
 		PLIST_ENTRY CurrentListEntry = Ldr->InLoadOrderModuleList.Flink;
-		CurrentListEntry&& CurrentListEntry->Flink && ( UINT64 )CurrentListEntry != ( UINT64 )Ldr->InLoadOrderModuleList.Blink;
+		CurrentListEntry&& CurrentListEntry->Flink && ( UINT_PTR )CurrentListEntry != ( UINT_PTR )Ldr->InLoadOrderModuleList.Blink;
 		CurrentListEntry = CurrentListEntry->Flink
 		)
 	{
@@ -39,7 +44,7 @@ SbxSetupMonitoredRoutines(
 		std::wstring WDllName = DataEntry->BaseDllName.Buffer;
 		std::string DllName = std::string( WDllName.begin( ), WDllName.end( ) );
 
-		SbxRegisterPEExportsAsMonitored( DllName, ( UINT64 )DataEntry->DllBase );
+		SbxRegisterPEExportsAsMonitored( DllName, ( UINT_PTR )DataEntry->DllBase );
 	}
 
 	return TRUE;
@@ -48,7 +53,7 @@ SbxSetupMonitoredRoutines(
 BOOL
 SbxRegisterPEExportsAsMonitored(
 	_In_ std::string LibName,
-	_In_ UINT64 PEBase
+	_In_ UINT_PTR PEBase
 )
 {
 	if ( !PEBase )
@@ -82,7 +87,7 @@ SbxRegisterPEExportsAsMonitored(
 		BOOL IsNameExport = I < ExportDirectory->NumberOfNames;
 
 		UINT16 Ordinal = OrdinalsTable[ I ];
-		UINT64 Function = PEBase + AddressesTable[ Ordinal ];
+		UINT_PTR Function = PEBase + AddressesTable[ Ordinal ];
 
 		SBX_MONITORED_ROUTINE MonitoredRoutine = { };
 			MonitoredRoutine.LibName        = LibName;
@@ -105,13 +110,13 @@ SbxAddMonitoredRoutine(
 	_In_ SBX_MONITORED_ROUTINE MonitoredRoutine
 )
 {
-	if ( MonitoredRoutines.contains( ( UINT64 )MonitoredRoutine.RoutineAddress ) )
+	if ( MonitoredRoutines.contains( ( UINT_PTR )MonitoredRoutine.RoutineAddress ) )
 	{
 		return TRUE;
 	}
 
 	MonitoredRoutines.insert( {
-		( UINT64 )MonitoredRoutine.RoutineAddress,
+		( UINT_PTR )MonitoredRoutine.RoutineAddress,
 		          MonitoredRoutine
 		} );
 

@@ -15,14 +15,14 @@ typedef enum _SBX_PE_IMAGE_TYPE
 typedef struct _SBX_PE_SECTION
 {
 	std::string Name;
-	UINT64 Start;
-	UINT64 End;
+	UINT_PTR Start;
+	UINT_PTR End;
 
 } SBX_PE_SECTION, *PSBX_PE_SECTION;
 
 typedef struct _SBX_PE_IMAGE
 {
-	UINT64 LoadedBase;
+	UINT_PTR LoadedBase;
 
 	ULONG PEImageType;
 

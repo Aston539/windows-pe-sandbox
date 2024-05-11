@@ -1,6 +1,7 @@
 #include "vcpu.h"
 
 #include "hde/hde64.h"
+#include "hde/hde32.h"
 
 #include <iostream>
 
@@ -12,16 +13,21 @@ SbxEmulateInstruction(
     _Inout_ PCONTEXT ContextRecord
 )
 {
-    if ( SbxIsWithinEmulatedImage( ( UINT64 )ExceptionAddress ) )
+    if ( SbxIsWithinEmulatedImage( ( UINT_PTR )ExceptionAddress ) )
     {
-        PSBX_EMULATED_PE SbxPE = SbxGetEmulatedPEByException( ( UINT64 )ExceptionAddress );
+        PSBX_EMULATED_PE SbxPE = SbxGetEmulatedPEByException( ( UINT_PTR )ExceptionAddress );
 
         if ( SbxPE->Flags & SBX_EMU_LOG_INSTRUCTIONS )
         {
 #define MAX_INSTR_LEN 20
 
+#ifdef _WIN64
             hde64s InstructionInfo = { };
             hde64_disasm( ExceptionAddress, &InstructionInfo );
+#else
+            hde32s InstructionInfo = { };
+            hde32_disasm( ExceptionAddress, &InstructionInfo );
+#endif
 
             BYTE Buffer[ MAX_INSTR_LEN ] = { };
 
@@ -87,10 +93,19 @@ SbxAdvanceRIP(
     _Inout_ PCONTEXT ContextRecord
 )
 { 
+#ifdef _WIN64
     hde64s InstructionInfo = { };
     hde64_disasm( InstructionAddress, &InstructionInfo );
+#else
+    hde32s InstructionInfo = { };
+    hde32_disasm( InstructionAddress, &InstructionInfo );
+#endif
 
     printf( "SbxAdvanceRip( 0x%p ) -> %i\n", InstructionAddress, InstructionInfo.len );
 
+#ifdef _WIN64
     ContextRecord->Rip += InstructionInfo.len;
+#else
+    ContextRecord->Eip += InstructionInfo.len;
+#endif
 }

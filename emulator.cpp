@@ -26,11 +26,6 @@ SbxInitializeEmulator(
 		return FALSE;
 	}
 
-	if ( !SbxSetupMonitoredRoutines( ) )
-	{
-		return FALSE;
-	}
-
 	return TRUE;
 }
 
@@ -101,7 +96,7 @@ SbxStartEmulatedPE(
 	_In_ PVOID R9
 )
 {
-	UINT64 Entry = EmulatedPE->PE.LoadedBase + EmulatedPE->PE.OptionalHeader.AddressOfEntryPoint;
+	UINT_PTR Entry = EmulatedPE->PE.LoadedBase + EmulatedPE->PE.OptionalHeader.AddressOfEntryPoint;
 
 	SbxSetPEProtection( EmulatedPE );
 
@@ -111,10 +106,17 @@ SbxStartEmulatedPE(
 	
 	GetThreadContext( HThread, &ThreadContext );
 
-	ThreadContext.Rcx = ( UINT64 )RCX;
-	ThreadContext.Rdx = ( UINT64 )RDX;
-	ThreadContext.R8  = ( UINT64 )R8;
-	ThreadContext.R9  = ( UINT64 )R9;
+#ifdef _WIN64
+	ThreadContext.Rcx = ( UINT_PTR )RCX;
+	ThreadContext.Rdx = ( UINT_PTR )RDX;
+	ThreadContext.R8  = ( UINT_PTR )R8;
+	ThreadContext.R9  = ( UINT_PTR )R9;
+#else
+	ThreadContext.Ecx = ( UINT_PTR )RCX;
+	ThreadContext.Edx = ( UINT_PTR )RDX;
+	//ThreadContext.E8 = ( UINT_PTR )R8;
+	//ThreadContext.E9 = ( UINT_PTR )R9;
+#endif
 
 	SetThreadContext( HThread, &ThreadContext );
 
@@ -130,6 +132,18 @@ SbxEmulatePE(
 	_In_ ULONG Flags 
 )
 {
+	if ( !( Flags & SBX_EMU_ONLY_MONITOR_EXTERN_LIBS ) )
+	{
+		//
+		// will setup monitored routines for already
+		// loaded libraries such as ntdll, kernelbase etc
+		//
+		if ( !SbxSetupMonitoredRoutines( ) )
+		{
+			return FALSE;
+		}
+	}
+
 	PSBX_EMULATED_PE EmulatedPE = SbxAllocateImage( ImageEnvironmentType, *PEImage );
 
 	if ( !EmulatedPE )
@@ -216,7 +230,7 @@ SbxExceptionHandler(
 	_Inout_ PEXCEPTION_POINTERS ExceptionInfo
 )
 {
-	thread_local static UINT64 LastExceptionAddress = 0;
+	thread_local static UINT_PTR LastExceptionAddress = 0;
 
 	std::unique_lock<std::mutex> lock( ExceptionMutex );
 
@@ -227,7 +241,7 @@ SbxExceptionHandler(
 
 	if ( ExceptionCode == EXCEPTION_GUARD_PAGE )
 	{
-		if ( !SbxIsWithinEmulatedImage( ( UINT64 )ExceptionAddress ) )
+		if ( !SbxIsWithinEmulatedImage( ( UINT_PTR )ExceptionAddress ) )
 		{
 			//
 			// this is not our exception
@@ -251,7 +265,7 @@ SbxExceptionHandler(
 
 	if ( ExceptionCode == EXCEPTION_SINGLE_STEP )
 	{
-		if ( !SbxIsWithinEmulatedImage( ( UINT64 )ExceptionAddress ) )
+		if ( !SbxIsWithinEmulatedImage( ( UINT_PTR )ExceptionAddress ) )
 		{
 			//
 			// stepping out of image
@@ -291,9 +305,9 @@ SbxExceptionHandler(
 			);
 		}
 
-		LastExceptionAddress = ( UINT64 )ExceptionAddress; // ExceptionInfo->ContextRecord->Rip;
+		LastExceptionAddress = ( UINT_PTR )ExceptionAddress; // ExceptionInfo->ContextRecord->Rip;
 
-		PSBX_EMULATED_PE EmulatedPE = SbxGetEmulatedPEByException( ( UINT64 )ExceptionAddress );
+		PSBX_EMULATED_PE EmulatedPE = SbxGetEmulatedPEByException( ( UINT_PTR )ExceptionAddress );
 
 		if ( !EmulatedPE )
 		{

@@ -27,6 +27,10 @@ SbxLoadPE(
 
 	if ( !LoadedImage )
 	{
+		printf( "Failed to load pe - %X\n", GetLastError( ) );
+
+		system( "pause" );
+
 		return FALSE;
 	}
 
@@ -42,9 +46,9 @@ SbxLoadPE(
 	// base of image specified by the dos header in the e_lfanew 
 	// data member
 	//
-	PIMAGE_NT_HEADERS Nt  = ( PIMAGE_NT_HEADERS )( ( UINT64 )LoadedImage + Dos->e_lfanew );
+	PIMAGE_NT_HEADERS Nt  = ( PIMAGE_NT_HEADERS )( ( UINT_PTR )LoadedImage + Dos->e_lfanew );
 
-	PEImage->LoadedBase     = ( UINT64 )LoadedImage;
+	PEImage->LoadedBase     = ( UINT_PTR )LoadedImage;
 	PEImage->DosHeader      = *Dos;				  // make copies of the pe structures as so
 	PEImage->FileHeader     = Nt->FileHeader;	  // that we can limit the amount we need to
 	PEImage->OptionalHeader = Nt->OptionalHeader; // access the emulated images memory
